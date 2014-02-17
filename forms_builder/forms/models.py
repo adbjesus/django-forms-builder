@@ -68,6 +68,9 @@ class AbstractForm(models.Model):
         blank=True, null=True)
     login_required = models.BooleanField(_("Login required"), default=False,
         help_text=_("If checked, only logged in users can view the form"))
+    anonymous_vote = models.BooleanField(_("Anonymous vote"), default=True,
+        help_text=_("If checked, the entry will be associated with a user, requires \"Login required\" True to have any effect"))
+
     send_email = models.BooleanField(_("Send email"), default=True, help_text=
         _("If checked, the person entering the form will be sent an email"))
     email_from = models.EmailField(_("From address"), blank=True,
@@ -229,6 +232,13 @@ class AbstractFieldEntry(models.Model):
         verbose_name_plural = _("Form field entries")
         abstract = True
 
+class AbstractUserEntry(models.Model):
+    user = models.ForeignKey(django_settings.AUTH_USER_MODEL)
+
+    class Meta:
+        verbose_name = _("User entry")
+        verbose_name_plural = _("User entries")
+        abstract = True
 
 ###################################################
 #                                                 #
@@ -247,6 +257,12 @@ class FieldEntry(AbstractFieldEntry):
 class Form(AbstractForm):
     pass
 
+class UserEntry(AbstractUserEntry):
+    form = models.ForeignKey("Form")
+    entry = models.ForeignKey("FormEntry",null=True)
+
+    class Meta:
+        unique_together = ['user','form']
 
 class Field(AbstractField):
     """

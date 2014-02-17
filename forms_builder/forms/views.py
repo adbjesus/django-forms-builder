@@ -15,6 +15,7 @@ from forms_builder.forms.settings import SEND_FROM_SUBMITTER, USE_SITES
 from forms_builder.forms.signals import form_invalid, form_valid
 from forms_builder.forms.utils import split_choices
 
+from django.db import IntegrityError
 
 def form_detail(request, slug, template="forms/form_detail.html"):
     """
@@ -32,7 +33,14 @@ def form_detail(request, slug, template="forms/form_detail.html"):
         if not form_for_form.is_valid():
             form_invalid.send(sender=request, form=form_for_form)
         else:
-            entry = form_for_form.save()
+            try:
+                entry = form_for_form.save(user=request.user)
+            except IntegrityError:
+                err = "You have already voted for this"
+                return redirect(reverse("form_error", kwargs={"slug": form.slug, "error": err}))
+            except:
+                raise
+
             subject = form.email_subject
             if not subject:
                 subject = "%s - %s" % (form.title, entry.entry_time)
@@ -79,4 +87,10 @@ def form_sent(request, slug, template="forms/form_sent.html"):
     published = Form.objects.published(for_user=request.user)
     form = get_object_or_404(published, slug=slug)
     context = {"form": form}
+    return render_to_response(template, context, RequestContext(request))
+
+def form_error(request, slug, error, template="forms/form_error.html"):
+    published = Form.objects.published(for_user=request.user)
+    form = get_object_or_404(published, slug=slug)
+    context = {"form": form, "error": error}
     return render_to_response(template, context, RequestContext(request))

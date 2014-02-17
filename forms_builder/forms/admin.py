@@ -15,7 +15,7 @@ from django.template import RequestContext
 from django.utils.translation import ungettext, ugettext_lazy as _
 
 from forms_builder.forms.forms import EntriesForm
-from forms_builder.forms.models import Form, Field, FormEntry, FieldEntry
+from forms_builder.forms.models import Form, Field, FormEntry, FieldEntry, UserEntry
 from forms_builder.forms.settings import CSV_DELIMITER, UPLOAD_ROOT
 from forms_builder.forms.settings import USE_SITES, EDITABLE_SLUGS
 from forms_builder.forms.utils import now, slugify
@@ -31,7 +31,7 @@ except ImportError:
 fs = FileSystemStorage(location=UPLOAD_ROOT)
 form_admin_filter_horizontal = ()
 form_admin_fieldsets = [
-    (None, {"fields": ("title", ("status", "login_required",),
+    (None, {"fields": ("title", ("status", "login_required", "anonymous_vote"),
         ("publish_date", "expiry_date",),
         "intro", "button_text", "response")}),
     (_("Email"), {"fields": ("send_email", "email_from", "email_copies",
@@ -55,6 +55,7 @@ class FieldAdmin(admin.TabularInline):
 class FormAdmin(admin.ModelAdmin):
     formentry_model = FormEntry
     fieldentry_model = FieldEntry
+    userentry_model = UserEntry
 
     inlines = (FieldAdmin,)
     list_display = ("title", "status", "email_copies", "publish_date",
@@ -109,7 +110,7 @@ class FormAdmin(admin.ModelAdmin):
             return HttpResponseRedirect(change_url)
         form = get_object_or_404(self.model, id=form_id)
         post = request.POST or None
-        args = form, request, self.formentry_model, self.fieldentry_model, post
+        args = form, request, self.formentry_model, self.fieldentry_model, self.userentry_model, post
         entries_form = EntriesForm(*args)
         delete = "%s.delete_formentry" % self.formentry_model._meta.app_label
         can_delete_entries = request.user.has_perm(delete)

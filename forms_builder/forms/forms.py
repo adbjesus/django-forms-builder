@@ -13,9 +13,13 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
 
 from forms_builder.forms import fields
-from forms_builder.forms.models import FormEntry, FieldEntry
+from forms_builder.forms.models import FormEntry, FieldEntry, UserEntry
 from forms_builder.forms import settings
 from forms_builder.forms.utils import now, split_choices
+
+from django.contrib.auth.models import AnonymousUser
+
+from django.db import IntegrityError
 
 
 fs = FileSystemStorage(location=settings.UPLOAD_ROOT)
@@ -192,7 +196,7 @@ class FormForForm(forms.ModelForm):
                 text = field.placeholder_text
                 self.fields[field_key].widget.attrs["placeholder"] = text
 
-    def save(self, **kwargs):
+    def save(self, user=None,**kwargs):
         """
         Get/create a FormEntry instance and assign submitted values to
         related FieldEntry instances for each form field.
@@ -201,6 +205,19 @@ class FormForForm(forms.ModelForm):
         entry.form = self.form
         entry.entry_time = now()
         entry.save()
+
+        if(self.form.login_required is True):
+            user_entry = UserEntry()
+            user_entry.user = user
+            user_entry.form = self.form
+            if(self.form.anonymous_vote is False):
+                user_entry.entry = entry
+            try:
+                user_entry.save()
+            except:
+                entry.delete()
+                raise
+
         entry_fields = entry.fields.values_list("field_id", flat=True)
         new_entry_fields = []
         for field in self.form_fields:
@@ -242,7 +259,7 @@ class EntriesForm(forms.Form):
     """
 
     def __init__(self, form, request, formentry_model=FormEntry,
-                 fieldentry_model=FieldEntry, *args, **kwargs):
+                 fieldentry_model=FieldEntry, userentry_model=UserEntry, *args, **kwargs):
         """
         Iterate through the fields of the ``forms.models.Form`` instance and
         create the form fields required to control including the field in
@@ -255,9 +272,13 @@ class EntriesForm(forms.Form):
         self.request = request
         self.formentry_model = formentry_model
         self.fieldentry_model = fieldentry_model
+        self.userentry_model = userentry_model
         self.form_fields = form.fields.all()
         self.entry_time_name = unicode(self.formentry_model._meta.get_field(
             "entry_time").verbose_name).encode("utf-8")
+        self.user_name = unicode(self.userentry_model._meta.get_field(
+            "user").verbose_name).encode("utf-8")
+
         super(EntriesForm, self).__init__(*args, **kwargs)
         for field in self.form_fields:
             field_key = "field_%s" % field.id
@@ -307,11 +328,24 @@ class EntriesForm(forms.Form):
         self.fields["%s_to" % field_key] = forms.DateField(
             label=_("and"), widget=SelectDateWidget(), required=False)
 
+        # Add UserEntry.user as a field
+        field_key = "field_-1"
+        label = self.userentry_model._meta.get_field("user").verbose_name
+        self.fields["%s_export" % field_key] = forms.BooleanField(
+            initial=True, label=label, required=False)
+        self.fields["%s_filter" % field_key] = choice_filter_field
+        contains_field = forms.CharField(label=" ", required=False)
+        self.fields["%s_contains" % field_key] = contains_field
+
     def __iter__(self):
         """
         Yield pairs of include checkbox / filters for each field.
         """
-        for field_id in [f.id for f in self.form_fields] + [0]:
+        other_fields = [0]
+        if(self.form.anonymous_vote==False and self.form.login_required==True):
+            other_fields.append(-1)
+
+        for field_id in [f.id for f in self.form_fields] + other_fields:
             prefix = "field_%s_" % field_id
             fields = [f for f in super(EntriesForm, self).__iter__()
                       if f.name.startswith(prefix)]
@@ -337,6 +371,8 @@ class EntriesForm(forms.Form):
                   if self.posted_data("field_%s_export" % f.id)]
         if self.posted_data("field_0_export"):
             fields.append(self.entry_time_name)
+        if self.posted_data("field_-1_export"):
+            fields.append(self.user_name)
         return fields
 
     def rows(self, csv=False):
@@ -359,9 +395,11 @@ class EntriesForm(forms.Form):
                 elif field.is_a(*fields.DATES):
                     date_field_ids.append(field.id)
         num_columns = len(field_indexes)
+
         include_entry_time = self.posted_data("field_0_export")
-        if include_entry_time:
-            num_columns += 1
+        include_user = self.posted_data("field_-1_export")
+        #if include_entry_time:
+        #    num_columns += 1
 
         # Get the field entries for the given form and filter by entry_time
         # if specified.
@@ -374,6 +412,8 @@ class EntriesForm(forms.Form):
             if time_from and time_to:
                 field_entries = field_entries.filter(
                     entry__entry_time__range=(time_from, time_to))
+
+        
 
         # Loop through each field value ordered by entry, building up each
         # entry as a row. Use the ``valid_row`` flag for marking a row as
@@ -392,7 +432,17 @@ class EntriesForm(forms.Form):
                 current_row = [""] * num_columns
                 valid_row = True
                 if include_entry_time:
-                    current_row[-1] = field_entry.entry.entry_time
+                    current_row.append(field_entry.entry.entry_time)
+                if include_user:
+                    user_found=False
+                    for e in UserEntry.objects.all():
+                        if(e.entry==field_entry.entry):
+                            current_row.append(e.user)
+                            user_found=True
+                            break
+                    if(user_found==False):
+                        current_row.append("")
+                        
             field_value = field_entry.value or ""
             # Check for filter.
             field_id = field_entry.field_id
