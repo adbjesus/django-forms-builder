@@ -165,6 +165,7 @@ class FormAdmin(admin.ModelAdmin):
                     entries = FormEntry.objects.filter(id__in=selected)
                     count = entries.count()
                     if count > 0:
+                        UserEntry.objects.filter(entry=entries[0]).delete()
                         entries.delete()
                         message = ungettext("1 entry deleted",
                                             "%(count)s entries deleted", count)
