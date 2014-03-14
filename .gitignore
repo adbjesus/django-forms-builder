@@ -1,5 +1,6 @@
 *.pyc
 ve
 *.egg-info
+*.db
 
 .DS_Store
