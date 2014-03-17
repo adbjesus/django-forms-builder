@@ -1,0 +1,22 @@
+<!doctype html>
+<head>
+    <meta charset="utf-8">
+    <title>{{ form.view_responses }}</title>
+    <style>
+        body {font-family:sans-serif; padding:1em 2em;}
+        p {width:50em;}
+        label {display:block; float:left; width:10em;}
+        .errorlist {color:#f00;}
+    </style>
+</head>
+<body>
+    <h1>{{ form.title }} Responses</h1>
+    {% for field,result in results %}
+        <h2>{{ field.id }} - {{ field.label }}</h2>
+        {% for choice,count,perc in result %}
+            {{ choice }} - {{ count }} - {{ perc }}
+            <br>
+        {% endfor %}
+    {% endfor %}
+    <p>{{ entries }}</p>
+</body>

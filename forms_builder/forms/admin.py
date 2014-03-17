@@ -31,7 +31,7 @@ except ImportError:
 fs = FileSystemStorage(location=UPLOAD_ROOT)
 form_admin_filter_horizontal = ()
 form_admin_fieldsets = [
-    (None, {"fields": ("title", ("status", "login_required", "anonymous_vote"),
+    (None, {"fields": ("title", "status", "login_required", "anonymous_vote", "view_responses",
         ("publish_date", "expiry_date",),
         "intro", "button_text", "response")}),
     (_("Email"), {"fields": ("send_email", "email_from", "email_copies",

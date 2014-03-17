@@ -80,6 +80,7 @@ class AbstractForm(models.Model):
         max_length=200)
     email_subject = models.CharField(_("Subject"), max_length=200, blank=True)
     email_message = models.TextField(_("Message"), blank=True)
+    view_responses = models.BooleanField(_("View responses public"),default=False, help_text=_("Whether the responses can be seen by the public"))
 
     objects = FormManager()
 

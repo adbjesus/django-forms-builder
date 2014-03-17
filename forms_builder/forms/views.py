@@ -10,10 +10,13 @@ from django.utils.http import urlquote
 from email_extras.utils import send_mail_template
 
 from forms_builder.forms.forms import FormForForm
-from forms_builder.forms.models import Form
+from forms_builder.forms.models import Form,FormEntry,Field,FieldEntry
 from forms_builder.forms.settings import SEND_FROM_SUBMITTER, USE_SITES
 from forms_builder.forms.signals import form_invalid, form_valid
 from forms_builder.forms.utils import split_choices
+from forms_builder.forms import fields
+
+from collections import defaultdict
 
 from django.db import IntegrityError
 
@@ -93,4 +96,29 @@ def form_error(request, slug, error, template="forms/form_error.html"):
     published = Form.objects.published(for_user=request.user)
     form = get_object_or_404(published, slug=slug)
     context = {"form": form, "error": error}
+    return render_to_response(template, context, RequestContext(request))
+
+def form_responses(request, slug, template="forms/form_responses.html"):
+    published = Form.objects.published(for_user=request.user)
+    form = get_object_or_404(published,slug=slug)
+
+    all_fields = [f for f in Field.objects.all() if f.form == form]
+
+    entries = [e for e in FormEntry.objects.all() if e.form == form]
+    entries = [[c.field_id,c.value] for c in FieldEntry.objects.all() if c.entry in entries]
+
+    entries_dict = defaultdict(list)
+    for k,v in entries: entries_dict[k].append(v)
+    entries_dict = dict(entries_dict)
+
+    results = list()
+    for field in all_fields:
+        results.append([field,list()])
+        if(field.field_type==fields.RADIO_MULTIPLE):
+            for choice in field.get_choices():
+                results[-1][-1].append([choice[0],entries_dict[field.id].count(choice[0]),entries_dict[field.id].count(choice[0])/float(len(entries_dict[field.id]))])
+
+    print results
+
+    context = {"form": form, "results": results}
     return render_to_response(template, context, RequestContext(request))
