@@ -4,3 +4,4 @@ ve
 *.db
 
 .DS_Store
+.idea
