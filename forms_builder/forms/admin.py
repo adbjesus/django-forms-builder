@@ -29,22 +29,25 @@ except ImportError:
 
 
 fs = FileSystemStorage(location=UPLOAD_ROOT)
-form_admin_filter_horizontal = ()
+form_admin_filter_horizontal = ("can_view_groups","can_submit_groups", "can_view_responses_groups",)
 form_admin_fieldsets = [
-    (None, {"fields": ("title", "status", "login_required", "anonymous_vote", "view_responses",
+    (None, {"fields": (("title", "slug",), "can_view_status", "can_view_groups", ("can_submit_status", "anonymous_vote",),
+        "can_submit_groups", "can_view_responses_status", "can_view_responses_groups",
         ("publish_date", "expiry_date",),
         "intro", "button_text", "response")}),
     (_("Email"), {"fields": ("send_email", "email_from", "email_copies",
         "email_subject", "email_message")}),]
 
-if EDITABLE_SLUGS:
-    form_admin_fieldsets.append(
-            (_("Slug"), {"fields": ("slug",), "classes": ("collapse",)}))
+#if EDITABLE_SLUGS:
+#    form_admin_fieldsets.append(
+#            (_("Slug"), {"fields": ("slug",), "classes": ("collapse",)}))
 
 if USE_SITES:
     form_admin_fieldsets.append((_("Sites"), {"fields": ("sites",),
         "classes": ("collapse",)}))
-    form_admin_filter_horizontal = ("sites",)
+    form_admin_filter_horizontal = list(form_admin_filter_horizontal)
+    form_admin_filter_horizontal.append("sites")
+    form_admin_filter_horizontal = tuple(form_admin_filter_horizontal)
 
 
 class FieldAdmin(admin.TabularInline):
@@ -58,15 +61,17 @@ class FormAdmin(admin.ModelAdmin):
     userentry_model = UserEntry
 
     inlines = (FieldAdmin,)
-    list_display = ("title", "status", "email_copies", "publish_date",
+    list_display = ("title", "can_view_status", "email_copies", "publish_date",
                     "expiry_date", "total_entries", "admin_links")
     list_display_links = ("title",)
-    list_editable = ("status", "email_copies", "publish_date", "expiry_date")
-    list_filter = ("status",)
+    list_editable = ("can_view_status", "email_copies", "publish_date", "expiry_date")
+    list_filter = ("can_view_status",)
     filter_horizontal = form_admin_filter_horizontal
     search_fields = ("title", "intro", "response", "email_from",
                      "email_copies")
-    radio_fields = {"status": admin.HORIZONTAL}
+    radio_fields = {"can_view_responses_status": admin.HORIZONTAL, 
+                    "can_view_status": admin.HORIZONTAL, 
+                    "can_submit_status": admin.HORIZONTAL}
     fieldsets = form_admin_fieldsets
 
     def queryset(self, request):

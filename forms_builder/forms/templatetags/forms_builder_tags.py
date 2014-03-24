@@ -2,7 +2,7 @@ from django import template
 from django.template.loader import get_template
 
 from forms_builder.forms.forms import FormForForm
-from forms_builder.forms.models import Form
+from forms_builder.forms.models import Form,STATUS_PUBLIC
 
 
 register = template.Library()
@@ -29,7 +29,7 @@ class BuiltFormNode(template.Node):
                 form = None
         else:
             form = template.Variable(self.value).resolve(context)
-        if not isinstance(form, Form) or (form.login_required and not
+        if not isinstance(form, Form) or (form.can_view_status>STATUS_PUBLIC and not
                                           user.is_authenticated()):
             return ""
         t = get_template("forms/includes/built_form.html")

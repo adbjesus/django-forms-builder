@@ -5,19 +5,22 @@ from django.contrib.sites.models import Site
 from django.db import models
 from django.db.models import Q
 from django.utils.translation import ugettext, ugettext_lazy as _
+from django.contrib.auth.models import Group
 
 from forms_builder.forms import fields
 from forms_builder.forms import settings
 from forms_builder.forms.utils import now, slugify, unique_slug
 
-
 STATUS_DRAFT = 1
-STATUS_PUBLISHED = 2
+STATUS_PUBLIC = 2
+STATUS_PRIVATE = 3
+STATUS_GROUPS = 4
 STATUS_CHOICES = (
     (STATUS_DRAFT, _("Draft")),
-    (STATUS_PUBLISHED, _("Published")),
+    (STATUS_PUBLIC, _("Public")),
+    (STATUS_PRIVATE, _("Private")),
+    (STATUS_GROUPS, _("Groups"))
 )
-
 
 class FormManager(models.Manager):
     """
@@ -26,13 +29,16 @@ class FormManager(models.Manager):
     def published(self, for_user=None):
         if for_user is not None and for_user.is_staff:
             return self.all()
+        print([e.publish_date for e in self.all()])
         filters = [
             Q(publish_date__lte=now()) | Q(publish_date__isnull=True),
             Q(expiry_date__gte=now()) | Q(expiry_date__isnull=True),
-            Q(status=STATUS_PUBLISHED),
+            ~Q(can_view_status=STATUS_DRAFT)
         ]
+        print(self.filter(*filters))
         if settings.USE_SITES:
             filters.append(Q(sites=Site.objects.get_current()))
+        print filters
         return self.filter(*filters)
 
 
@@ -58,18 +64,26 @@ class AbstractForm(models.Model):
     button_text = models.CharField(_("Button text"), max_length=50,
         default=_("Submit"))
     response = models.TextField(_("Response"), blank=True)
-    status = models.IntegerField(_("Status"), choices=STATUS_CHOICES,
-        default=STATUS_PUBLISHED)
+    
+    can_view_status = models.IntegerField(_("Can view status"), choices=STATUS_CHOICES,
+        default=STATUS_PUBLIC)
+    can_view_groups = models.ManyToManyField(Group, related_name="View Groups", blank=True)
     publish_date = models.DateTimeField(_("Published from"),
-        help_text=_("With published selected, won't be shown until this time"),
+        help_text=_("Won't be shown until this time"),
         blank=True, null=True)
     expiry_date = models.DateTimeField(_("Expires on"),
-        help_text=_("With published selected, won't be shown after this time"),
+        help_text=_("Won't be shown after this time"),
         blank=True, null=True)
-    login_required = models.BooleanField(_("Login required"), default=False,
-        help_text=_("If checked, only logged in users can view the form"))
+
+    can_submit_status = models.IntegerField(_("Can submit status"), choices=STATUS_CHOICES,
+        default=STATUS_PUBLIC)
+    can_submit_groups = models.ManyToManyField(Group, related_name="Submit Groups", blank=True)
     anonymous_vote = models.BooleanField(_("Anonymous vote"), default=True,
-        help_text=_("If checked, the entry will be associated with a user, requires \"Login required\" True to have any effect"))
+        help_text=_("If checked, the entry will be anonymous, else it will be associated with a user. Requires private or groups status."))
+
+    can_view_responses_status = models.IntegerField(_("Can view responses status"), choices=STATUS_CHOICES,
+        default=STATUS_PUBLIC)
+    can_view_responses_groups = models.ManyToManyField(Group, related_name="View Responses Groups", blank=True)
 
     send_email = models.BooleanField(_("Send email"), default=True, help_text=
         _("If checked, the person entering the form will be sent an email"))
@@ -80,7 +94,6 @@ class AbstractForm(models.Model):
         max_length=200)
     email_subject = models.CharField(_("Subject"), max_length=200, blank=True)
     email_message = models.TextField(_("Message"), blank=True)
-    view_responses = models.BooleanField(_("View responses public"),default=False, help_text=_("Whether the responses can be seen by the public"))
 
     objects = FormManager()
 

@@ -206,7 +206,7 @@ class FormForForm(forms.ModelForm):
         entry.entry_time = now()
         entry.save()
 
-        if(self.form.login_required is True):
+        if(self.form.can_view_status == 3):
             user_entry = UserEntry()
             user_entry.user = user
             user_entry.form = self.form
@@ -342,7 +342,7 @@ class EntriesForm(forms.Form):
         Yield pairs of include checkbox / filters for each field.
         """
         other_fields = [0]
-        if(self.form.anonymous_vote==False and self.form.login_required==True):
+        if(self.form.anonymous_vote==False and self.form.can_view_status==3):
             other_fields.append(-1)
 
         for field_id in [f.id for f in self.form_fields] + other_fields:

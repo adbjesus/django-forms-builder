@@ -4,13 +4,14 @@ from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.contrib.sites.models import Site
 from django.core.mail import EmailMessage
 from django.core.urlresolvers import reverse
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render_to_response
 from django.template import RequestContext
 from django.utils.http import urlquote
 from email_extras.utils import send_mail_template
 
 from forms_builder.forms.forms import FormForForm
-from forms_builder.forms.models import Form,FormEntry,Field,FieldEntry
+from forms_builder.forms.models import Form, FormEntry, Field, FieldEntry, STATUS_DRAFT, STATUS_PUBLIC, STATUS_PRIVATE, STATUS_GROUPS
 from forms_builder.forms.settings import SEND_FROM_SUBMITTER, USE_SITES
 from forms_builder.forms.signals import form_invalid, form_valid
 from forms_builder.forms.utils import split_choices
@@ -26,9 +27,16 @@ def form_detail(request, slug, template="forms/form_detail.html"):
     """
     published = Form.objects.published(for_user=request.user)
     form = get_object_or_404(published, slug=slug)
-    if form.login_required and not request.user.is_authenticated():
+    if not request.user.is_authenticated() and not form.can_view_status == STATUS_PUBLIC:
         return redirect("%s?%s=%s" % (settings.LOGIN_URL, REDIRECT_FIELD_NAME,
-                        urlquote(request.get_full_path())))
+                                      urlquote(request.get_full_path())))
+
+    if request.user.is_authenticated():
+        if form.can_view_status == STATUS_GROUPS and (
+                len(list(set(request.user.groups.all()).intersection(set(form.can_view_groups.all())))) == 0):
+            print("No permissions")
+            raise Http404
+
     request_context = RequestContext(request)
     args = (form, request_context, request.POST or None, request.FILES or None)
     form_for_form = FormForForm(*args)
