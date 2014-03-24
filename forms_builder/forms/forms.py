@@ -1,4 +1,3 @@
-
 from datetime import date, datetime
 from os.path import join, split
 from uuid import uuid4
@@ -13,7 +12,7 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
 
 from forms_builder.forms import fields
-from forms_builder.forms.models import FormEntry, FieldEntry, UserEntry
+from forms_builder.forms.models import FormEntry, FieldEntry, UserEntry, STATUS_PUBLIC
 from forms_builder.forms import settings
 from forms_builder.forms.utils import now, split_choices
 
@@ -189,14 +188,14 @@ class FormForForm(forms.ModelForm):
             if field.required:
                 css_class += " required"
                 if (settings.USE_HTML5 and
-                    field.field_type != fields.CHECKBOX_MULTIPLE):
+                            field.field_type != fields.CHECKBOX_MULTIPLE):
                     self.fields[field_key].widget.attrs["required"] = ""
             self.fields[field_key].widget.attrs["class"] = css_class
             if field.placeholder_text and not field.default:
                 text = field.placeholder_text
                 self.fields[field_key].widget.attrs["placeholder"] = text
 
-    def save(self, user=None,**kwargs):
+    def save(self, user=None, **kwargs):
         """
         Get/create a FormEntry instance and assign submitted values to
         related FieldEntry instances for each form field.
@@ -206,11 +205,11 @@ class FormForForm(forms.ModelForm):
         entry.entry_time = now()
         entry.save()
 
-        if(self.form.can_view_status == 3):
+        if self.form.can_submit_status != STATUS_PUBLIC:
             user_entry = UserEntry()
             user_entry.user = user
             user_entry.form = self.form
-            if(self.form.anonymous_vote is False):
+            if self.form.anonymous_vote is False:
                 user_entry.entry = entry
             try:
                 user_entry.save()
@@ -292,17 +291,17 @@ class EntriesForm(forms.Form):
                 else:
                     choices = field.get_choices()
                 contains_field = forms.MultipleChoiceField(label=" ",
-                    choices=choices, widget=forms.CheckboxSelectMultiple(),
-                    required=False)
+                                                           choices=choices, widget=forms.CheckboxSelectMultiple(),
+                                                           required=False)
                 self.fields["%s_filter" % field_key] = choice_filter_field
                 self.fields["%s_contains" % field_key] = contains_field
             elif field.is_a(*fields.MULTIPLE):
                 # A fixed set of choices to filter by, with multiple
                 # possible values in the entry field.
                 contains_field = forms.MultipleChoiceField(label=" ",
-                    choices=field.get_choices(),
-                    widget=forms.CheckboxSelectMultiple(),
-                    required=False)
+                                                           choices=field.get_choices(),
+                                                           widget=forms.CheckboxSelectMultiple(),
+                                                           required=False)
                 self.fields["%s_filter" % field_key] = multiple_filter_field
                 self.fields["%s_contains" % field_key] = contains_field
             elif field.is_a(*fields.DATES):
@@ -342,7 +341,7 @@ class EntriesForm(forms.Form):
         Yield pairs of include checkbox / filters for each field.
         """
         other_fields = [0]
-        if(self.form.anonymous_vote==False and self.form.can_view_status==3):
+        if not self.form.anonymous_vote and self.form.can_submit_status != STATUS_PUBLIC:
             other_fields.append(-1)
 
         for field_id in [f.id for f in self.form_fields] + other_fields:
@@ -405,7 +404,7 @@ class EntriesForm(forms.Form):
         # if specified.
         model = self.fieldentry_model
         field_entries = model.objects.filter(entry__form=self.form
-            ).order_by("-entry__id").select_related(depth=1)
+        ).order_by("-entry__id").select_related(depth=1)
         if self.posted_data("field_0_filter") == FILTER_CHOICE_BETWEEN:
             time_from = self.posted_data("field_0_from")
             time_to = self.posted_data("field_0_to")
@@ -413,7 +412,7 @@ class EntriesForm(forms.Form):
                 field_entries = field_entries.filter(
                     entry__entry_time__range=(time_from, time_to))
 
-        
+
 
         # Loop through each field value ordered by entry, building up each
         # entry as a row. Use the ``valid_row`` flag for marking a row as
@@ -434,15 +433,15 @@ class EntriesForm(forms.Form):
                 if include_entry_time:
                     current_row.append(field_entry.entry.entry_time)
                 if include_user:
-                    user_found=False
+                    user_found = False
                     for e in UserEntry.objects.all():
-                        if(e.entry==field_entry.entry):
+                        if (e.entry == field_entry.entry):
                             current_row.append(e.user)
-                            user_found=True
+                            user_found = True
                             break
-                    if(user_found==False):
+                    if (user_found == False):
                         current_row.append("")
-                        
+
             field_value = field_entry.value or ""
             # Check for filter.
             field_id = field_entry.field_id
