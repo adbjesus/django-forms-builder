@@ -73,6 +73,7 @@ class FormAdmin(admin.ModelAdmin):
                     "can_view_status": admin.HORIZONTAL, 
                     "can_submit_status": admin.HORIZONTAL}
     fieldsets = form_admin_fieldsets
+    prepopulated_fields = {'slug': ('title',)}
 
     def queryset(self, request):
         """

@@ -2,11 +2,9 @@ from django import template
 from django.template.loader import get_template
 
 from forms_builder.forms.forms import FormForForm
-from forms_builder.forms.models import Form,STATUS_PUBLIC
-
+from forms_builder.forms.models import Form
 
 register = template.Library()
-
 
 class BuiltFormNode(template.Node):
 
@@ -29,8 +27,7 @@ class BuiltFormNode(template.Node):
                 form = None
         else:
             form = template.Variable(self.value).resolve(context)
-        if not isinstance(form, Form) or (form.can_view_status>STATUS_PUBLIC and not
-                                          user.is_authenticated()):
+        if not isinstance(form, Form) or not form.is_user_permitted(request.user, 'view'):
             return ""
         t = get_template("forms/includes/built_form.html")
         context["form"] = form

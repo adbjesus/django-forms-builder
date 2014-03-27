@@ -1,4 +1,3 @@
-
 from django.core.urlresolvers import reverse
 from django.conf import settings as django_settings
 from django.contrib.sites.models import Site
@@ -22,23 +21,22 @@ STATUS_CHOICES = (
     (STATUS_GROUPS, _("Groups"))
 )
 
+
 class FormManager(models.Manager):
     """
     Only show published forms for non-staff users.
     """
+
     def published(self, for_user=None):
         if for_user is not None and for_user.is_staff:
             return self.all()
-        print([e.publish_date for e in self.all()])
         filters = [
             Q(publish_date__lte=now()) | Q(publish_date__isnull=True),
             Q(expiry_date__gte=now()) | Q(expiry_date__isnull=True),
             ~Q(can_view_status=STATUS_DRAFT)
         ]
-        print(self.filter(*filters))
         if settings.USE_SITES:
             filters.append(Q(sites=Site.objects.get_current()))
-        print filters
         return self.filter(*filters)
 
 
@@ -56,42 +54,43 @@ class AbstractForm(models.Model):
     """
 
     sites = models.ManyToManyField(Site, editable=settings.USE_SITES,
-        default=[django_settings.SITE_ID])
+                                   default=[django_settings.SITE_ID])
     title = models.CharField(_("Title"), max_length=50)
     slug = models.SlugField(_("Slug"), editable=settings.EDITABLE_SLUGS,
-        max_length=100, unique=True)
+                            max_length=100, unique=True)
     intro = models.TextField(_("Intro"), blank=True)
     button_text = models.CharField(_("Button text"), max_length=50,
-        default=_("Submit"))
+                                   default=_("Submit"))
     response = models.TextField(_("Response"), blank=True)
-    
+
     can_view_status = models.IntegerField(_("Can view status"), choices=STATUS_CHOICES,
-        default=STATUS_PUBLIC)
+                                          default=STATUS_PUBLIC)
     can_view_groups = models.ManyToManyField(Group, related_name="View Groups", blank=True)
     publish_date = models.DateTimeField(_("Published from"),
-        help_text=_("Won't be shown until this time"),
-        blank=True, null=True)
+                                        help_text=_("Won't be shown until this time"),
+                                        blank=True, null=True)
     expiry_date = models.DateTimeField(_("Expires on"),
-        help_text=_("Won't be shown after this time"),
-        blank=True, null=True)
+                                       help_text=_("Won't be shown after this time"),
+                                       blank=True, null=True)
 
     can_submit_status = models.IntegerField(_("Can submit status"), choices=STATUS_CHOICES,
-        default=STATUS_PUBLIC)
+                                            default=STATUS_PUBLIC)
     can_submit_groups = models.ManyToManyField(Group, related_name="Submit Groups", blank=True)
     anonymous_vote = models.BooleanField(_("Anonymous vote"), default=True,
-        help_text=_("If checked, the entry will be anonymous, else it will be associated with a user. Requires private or groups status."))
+                                         help_text=_(
+                                             "If checked, the entry will be anonymous, else it will be associated with a user. Requires private or groups status."))
 
     can_view_responses_status = models.IntegerField(_("Can view responses status"), choices=STATUS_CHOICES,
-        default=STATUS_PUBLIC)
+                                                    default=STATUS_PUBLIC)
     can_view_responses_groups = models.ManyToManyField(Group, related_name="View Responses Groups", blank=True)
 
     send_email = models.BooleanField(_("Send email"), default=True, help_text=
-        _("If checked, the person entering the form will be sent an email"))
+    _("If checked, the person entering the form will be sent an email"))
     email_from = models.EmailField(_("From address"), blank=True,
-        help_text=_("The address the email will be sent from"))
+                                   help_text=_("The address the email will be sent from"))
     email_copies = models.CharField(_("Send copies to"), blank=True,
-        help_text=_("One or more email addresses, separated by commas"),
-        max_length=200)
+                                    help_text=_("One or more email addresses, separated by commas"),
+                                    max_length=200)
     email_subject = models.CharField(_("Subject"), max_length=200, blank=True)
     email_message = models.TextField(_("Message"), blank=True)
 
@@ -121,6 +120,7 @@ class AbstractForm(models.Model):
         with the number of entries.
         """
         return self.total_entries
+
     total_entries.admin_order_field = "total_entries"
 
     @models.permalink
@@ -138,6 +138,28 @@ class AbstractForm(models.Model):
         for i, (text, url) in enumerate(links):
             links[i] = "<a href='%s'>%s</a>" % (url, ugettext(text))
         return "<br>".join(links)
+
+    def can_user(self, user, status, groups):
+        if user.is_staff:
+            return True
+        if status == STATUS_PUBLIC:
+            return True
+        if status == STATUS_PRIVATE and user.is_authenticated():
+            return True
+        if status == STATUS_GROUPS and not groups is None and (
+                    len(list(set(user.groups.all()).intersection(groups))) != 0):
+            return True
+        return False
+
+    def is_user_permitted(self, user, permission):
+        if permission == 'view':
+            return self.can_user(user, self.can_view_status, self.can_view_groups.all())
+        if permission == 'submit':
+            return self.can_user(user, self.can_submit_status, self.can_submit_groups.all())
+        if permission == 'responses':
+            return self.can_user(user, self.can_view_responses_status, self.can_view_responses_groups.all())
+        raise TypeError('Type must be view,submit or responses')
+
     admin_links.allow_tags = True
     admin_links.short_description = ""
 
@@ -146,6 +168,7 @@ class FieldManager(models.Manager):
     """
     Only show visible fields when displaying actual form..
     """
+
     def visible(self):
         return self.filter(visible=True)
 
@@ -157,19 +180,19 @@ class AbstractField(models.Model):
 
     label = models.CharField(_("Label"), max_length=settings.LABEL_MAX_LENGTH)
     slug = models.SlugField(_('Slug'), max_length=100, blank=True,
-            default="")
+                            default="")
     field_type = models.IntegerField(_("Type"), choices=fields.NAMES)
     required = models.BooleanField(_("Required"), default=True)
     visible = models.BooleanField(_("Visible"), default=True)
     choices = models.CharField(_("Choices"), max_length=settings.CHOICES_MAX_LENGTH, blank=True,
-        help_text="Comma separated options where applicable. If an option "
-            "itself contains commas, surround the option starting with the %s"
-            "character and ending with the %s character." %
-                (settings.CHOICES_QUOTE, settings.CHOICES_UNQUOTE))
+                               help_text="Comma separated options where applicable. If an option "
+                                         "itself contains commas, surround the option starting with the %s"
+                                         "character and ending with the %s character." %
+                                         (settings.CHOICES_QUOTE, settings.CHOICES_UNQUOTE))
     default = models.CharField(_("Default value"), blank=True,
-        max_length=settings.FIELD_MAX_LENGTH)
+                               max_length=settings.FIELD_MAX_LENGTH)
     placeholder_text = models.CharField(_("Placeholder Text"), null=True,
-        blank=True, max_length=100, editable=settings.USE_HTML5)
+                                        blank=True, max_length=100, editable=settings.USE_HTML5)
     help_text = models.CharField(_("Help text"), blank=True, max_length=settings.HELPTEXT_MAX_LENGTH)
 
     objects = FieldManager()
@@ -239,12 +262,13 @@ class AbstractFieldEntry(models.Model):
 
     field_id = models.IntegerField()
     value = models.CharField(max_length=settings.FIELD_MAX_LENGTH,
-            null=True)
+                             null=True)
 
     class Meta:
         verbose_name = _("Form field entry")
         verbose_name_plural = _("Form field entries")
         abstract = True
+
 
 class AbstractUserEntry(models.Model):
     user = models.ForeignKey(django_settings.AUTH_USER_MODEL)
@@ -253,6 +277,7 @@ class AbstractUserEntry(models.Model):
         verbose_name = _("User entry")
         verbose_name_plural = _("User entries")
         abstract = True
+
 
 ###################################################
 #                                                 #
@@ -271,12 +296,14 @@ class FieldEntry(AbstractFieldEntry):
 class Form(AbstractForm):
     pass
 
+
 class UserEntry(AbstractUserEntry):
     form = models.ForeignKey("Form")
-    entry = models.ForeignKey("FormEntry",null=True)
+    entry = models.ForeignKey("FormEntry", null=True)
 
     class Meta:
-        unique_together = ['user','form']
+        unique_together = ['user', 'form']
+
 
 class Field(AbstractField):
     """

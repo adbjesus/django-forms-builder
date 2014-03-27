@@ -11,19 +11,6 @@ from forms_builder.forms.models import Form, STATUS_GROUPS, STATUS_PUBLIC, STATU
 from forms_builder.forms.signals import form_invalid, form_valid
 
 
-def is_user_permitted(user, status, groups=None):
-    if status == STATUS_PUBLIC:
-        return True
-    if status == STATUS_DRAFT and user.is_staff:
-        return True
-    if status == STATUS_PRIVATE and user.is_authenticated():
-        return True
-    if status == STATUS_GROUPS and not groups is None and (
-                len(list(set(user.groups.all()).intersection(groups))) != 0):
-        return True
-    return False
-
-
 class FormDetailView(TemplateResponseMixin, ContextMixin, View):
     template_name = "forms/form_detail.html"
 
@@ -31,18 +18,18 @@ class FormDetailView(TemplateResponseMixin, ContextMixin, View):
         published = Form.objects.published(for_user=request.user)
         form = get_object_or_404(published, slug=slug)
 
-        if not is_user_permitted(request.user, form.can_view_status, form.can_view_groups.all()):
-            return Http404
+        if not form.is_user_permitted(request.user, 'view'):
+            raise Http404
 
-        context = self.get_context_data(form=form)
+        context = self.get_context_data(form=form, can_submit=form.is_user_permitted(request.user, 'submit'))
         return self.render_to_response(context)
 
     def post(self, request, slug):
         published = Form.objects.published(for_user=request.user)
         form = get_object_or_404(published, slug=slug)
 
-        if not is_user_permitted(request.user, form.can_submit_status, form.can_submit_groups.all()):
-            return Http404
+        if not form.is_user_permitted(request.user, 'submit'):
+            raise Http404
 
         request_context = RequestContext(request)
         args = (form, request_context, request.POST or None, request.FILES or None)
