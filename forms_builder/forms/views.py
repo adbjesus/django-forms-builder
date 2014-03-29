@@ -7,12 +7,12 @@ from django.views.generic import View
 from django.views.generic.base import TemplateResponseMixin, ContextMixin
 from forms_builder.forms import settings
 from forms_builder.forms.forms import FormForForm
-from forms_builder.forms.models import Form, STATUS_GROUPS, STATUS_PUBLIC, STATUS_DRAFT, STATUS_PRIVATE
 from forms_builder.forms.signals import form_invalid, form_valid
+from forms_builder.forms.models import Form
 
 
 class FormDetailView(TemplateResponseMixin, ContextMixin, View):
-    template_name = "forms/form_detail.html"
+    template_name = 'forms/form_detail.html'
 
     def get(self, request, slug):
         published = Form.objects.published(for_user=request.user)
@@ -42,12 +42,54 @@ class FormDetailView(TemplateResponseMixin, ContextMixin, View):
                 entry = form_for_form.save(user=request.user)
             except IntegrityError:
                 err = "You have already voted for this"
-                return redirect(reverse("form_error", kwargs={"slug": form.slug, "error": err}))
+                request.session['form_submitted'] = True
+                #request.session['form_error'] = err
+                return redirect(reverse("form_error", kwargs={"slug": form.slug}))
             except:
                 raise
 
             form_valid.send(sender=request, form=form_for_form, entry=entry)
-            return redirect(reverse("form_sent", kwargs={"slug": form.slug}))
+            request.session['form_submitted'] = True;
+            return redirect(reverse("form_success", kwargs={"slug": form.slug}))
+
+        context = self.get_context_data(form=form)
+        return self.render_to_response(context)
+
+
+class FormSuccessView(TemplateResponseMixin, ContextMixin, View):
+    template_name = 'forms/form_success.html'
+
+    def get(self, request, slug):
+        if not request.session.pop('form_submitted', False):
+            raise Http404
+        published = Form.objects.published(for_user=request.user)
+        form = get_object_or_404(published, slug=slug)
+
+        context = self.get_context_data(form=form)
+        return self.render_to_response(context)
+
+
+class FormErrorView(TemplateResponseMixin, ContextMixin, View):
+    template_name = 'forms/form_error.html'
+
+    def get(self, request, slug):
+        if not request.session.pop('form_submitted', False) or not request.session.pop('form_error', False):
+            raise Http404
+        published = Form.objects.published(for_user=request.user)
+        form = get_object_or_404(published, slug=slug)
+
+        context = self.get_context_data(form=form, error=request.session.pop('form_error'))
+        return self.render_to_response(context)
+
+class FormResponsesView(TemplateResponseMixin, ContextMixin, View):
+    template_name = 'forms/form_responses.html'
+
+    def get(self, request, slug):
+        published = Form.objects.published(for_user=request.user)
+        form = get_object_or_404(published, slug=slug)
+
+        if not form.is_user_permitted(request.user, 'responses'):
+            raise Http404
 
         context = self.get_context_data(form=form)
         return self.render_to_response(context)
