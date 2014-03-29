@@ -9,6 +9,7 @@ from forms_builder.forms import settings
 from forms_builder.forms.forms import FormForForm
 from forms_builder.forms.signals import form_invalid, form_valid
 from forms_builder.forms.models import Form
+from forms_builder.forms.fields import *
 
 
 class FormDetailView(TemplateResponseMixin, ContextMixin, View):
@@ -43,7 +44,7 @@ class FormDetailView(TemplateResponseMixin, ContextMixin, View):
             except IntegrityError:
                 err = "You have already voted for this"
                 request.session['form_submitted'] = True
-                #request.session['form_error'] = err
+                request.session['form_error'] = err
                 return redirect(reverse("form_error", kwargs={"slug": form.slug}))
             except:
                 raise
@@ -52,7 +53,7 @@ class FormDetailView(TemplateResponseMixin, ContextMixin, View):
             request.session['form_submitted'] = True;
             return redirect(reverse("form_success", kwargs={"slug": form.slug}))
 
-        context = self.get_context_data(form=form)
+        context = self.get_context_data(form=form, can_submit=form.is_user_permitted(request.user, 'submit'))
         return self.render_to_response(context)
 
 
@@ -81,6 +82,7 @@ class FormErrorView(TemplateResponseMixin, ContextMixin, View):
         context = self.get_context_data(form=form, error=request.session.pop('form_error'))
         return self.render_to_response(context)
 
+
 class FormResponsesView(TemplateResponseMixin, ContextMixin, View):
     template_name = 'forms/form_responses.html'
 
@@ -91,5 +93,44 @@ class FormResponsesView(TemplateResponseMixin, ContextMixin, View):
         if not form.is_user_permitted(request.user, 'responses'):
             raise Http404
 
-        context = self.get_context_data(form=form)
+        resp = dict()
+
+        # Join responses for each field
+        for e in form.fields.all():
+            resp[e] = [[j for j in i.fields.all() if j.field_id == e.id][0] for i in form.entries.all()]
+
+        # Make html from responses
+        for r in resp:
+            s = ""
+            if r.field_type in TEXTS:
+                for e in resp[r]:
+                    if e.value is None or len(e.value.replace('\n', '').replace('\r', '').strip()) == 0: continue
+                    tmp = '<span class="ans-container">' + e.value.strip() + '</span>'
+                    if s.find(tmp) == -1:
+                        s += tmp
+
+            elif r.field_type in CHOICES:
+                if(r.field_type==CHECKBOX):
+                    choices = {'True': 0, 'False': 0}
+                else:
+                    choices = {i[0]: 0 for i in r.get_choices()}
+
+                total = 0.0
+                for e in resp[r]:
+                    try:
+                        choices[e.value] += 1
+                        total += 1
+                    except KeyError:
+                        pass
+                    
+                for e in choices:
+                    s += e+' - '+str(choices[e])+' - '+str(round((choices[e]/total*100),2))+'<br>'
+
+
+            resp[r] = s
+
+        # Sort
+        resp = sorted([i for i in resp.iteritems()], key=lambda t: t[0].order)
+
+        context = self.get_context_data(form=form, responses=resp)
         return self.render_to_response(context)

@@ -7,16 +7,20 @@
         p {width:50em;}
         label {display:block; float:left; width:10em;}
         .errorlist {color:#f00;}
+        .ans-container {
+            background-color: #e7e7e7;
+            line-height: 170%;
+            padding: 1px 3px;
+            margin-right: 8px;
+            zoom: 1;
+        }
     </style>
 </head>
 <body>
     <h1>{{ form.title }} Responses</h1>
-    {% for field,result in results %}
-        <h2>{{ field.id }} - {{ field.label }}</h2>
-        {% for choice,count,perc in result %}
-            {{ choice }} - {{ count }} - {{ perc }}
-            <br>
-        {% endfor %}
+    {% for field,result in responses %}
+        <h2>{{ field.label }}</h2>
+        {{ result|safe }}
     {% endfor %}
     <p>{{ entries }}</p>
 </body>

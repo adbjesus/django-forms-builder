@@ -2,6 +2,7 @@
 ve
 *.egg-info
 *.db
+media
 
 .DS_Store
 .idea
