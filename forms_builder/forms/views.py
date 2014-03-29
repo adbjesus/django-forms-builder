@@ -102,15 +102,15 @@ class FormResponsesView(TemplateResponseMixin, ContextMixin, View):
         # Make html from responses
         for r in resp:
             s = ""
-            if r.field_type in TEXTS:
+            if r.field_type in TEXTS or r.field_type in DATES:
                 for e in resp[r]:
                     if e.value is None or len(e.value.replace('\n', '').replace('\r', '').strip()) == 0: continue
                     tmp = '<span class="ans-container">' + e.value.strip() + '</span>'
                     if s.find(tmp) == -1:
                         s += tmp
 
-            elif r.field_type in CHOICES:
-                if(r.field_type==CHECKBOX):
+            elif r.field_type in CHOICES or r.field_type in MULTIPLE:
+                if r.field_type == CHECKBOX:
                     choices = {'True': 0, 'False': 0}
                 else:
                     choices = {i[0]: 0 for i in r.get_choices()}
@@ -118,14 +118,24 @@ class FormResponsesView(TemplateResponseMixin, ContextMixin, View):
                 total = 0.0
                 for e in resp[r]:
                     try:
-                        choices[e.value] += 1
-                        total += 1
+                        val = e.value.split(', ')
+                        for v in val:
+                            choices[v] += 1
+                            total += 1
                     except KeyError:
                         pass
-                    
-                for e in choices:
-                    s += e+' - '+str(choices[e])+' - '+str(round((choices[e]/total*100),2))+'<br>'
 
+                for e in choices:
+                    if total == 0:
+                        s += e + ' - ' + str(choices[e]) + ' - 0<br>'
+                    else:
+                        s += e + ' - ' + str(choices[e]) + ' - ' + str(round((choices[e] / total * 100), 2)) + ' %<br>'
+            else:
+                total = 0
+                for e in resp[r]:
+                    if e.value is not None:
+                        total += 1
+                s += u'Total Count of Files Uploaded: {0:d}'.format(total)
 
             resp[r] = s
 
