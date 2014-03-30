@@ -120,7 +120,7 @@ class FormResponsesView(TemplateResponseMixin, ContextMixin, View):
                     try:
                         val = e.value.split(', ')
                         for v in val:
-                            choices[v] += 1
+                            choices[v] += 1q
                             total += 1
                     except KeyError:
                         pass

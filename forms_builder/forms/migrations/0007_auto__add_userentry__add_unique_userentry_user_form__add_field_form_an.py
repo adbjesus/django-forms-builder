@@ -4,6 +4,13 @@ from south.db import db
 from south.v2 import SchemaMigration
 from django.db import models
 
+try:
+    from django.contrib.auth import get_user_model
+except ImportError: # django < 1.5
+    from django.contrib.auth.models import User
+else:
+    User = get_user_model()
+
 
 class Migration(SchemaMigration):
 
@@ -11,7 +18,7 @@ class Migration(SchemaMigration):
         # Adding model 'UserEntry'
         db.create_table(u'forms_userentry', (
             (u'id', self.gf('django.db.models.fields.AutoField')(primary_key=True)),
-            ('user', self.gf('django.db.models.fields.related.ForeignKey')(to=orm['auth.User'])),
+            ('user', self.gf('django.db.models.fields.related.ForeignKey')(to=User)),
             ('form', self.gf('django.db.models.fields.related.ForeignKey')(to=orm['forms.Form'])),
             ('entry', self.gf('django.db.models.fields.related.ForeignKey')(to=orm['forms.FormEntry'], null=True)),
         ))
